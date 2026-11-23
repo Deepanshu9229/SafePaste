@@ -38,14 +38,14 @@ export default function ReviewPanel() {
                     title={entity.masked ? `Masked as ${tag}. Click to keep visible.` : "Visible. Click to mask."}
                     onClick={() => dispatch(entityToggled(index))}
                     className={cn(
-                      "rounded px-1 transition-colors",
+                      "rounded px-1 text-[0.8rem] leading-5 transition-colors",
                       entity.masked
                         ? "bg-primary/15 ring-1 ring-primary/40 hover:bg-primary/25"
                         : "border border-dashed border-muted-foreground/50 text-muted-foreground hover:bg-muted",
                     )}
                   >
                     {entity.value}
-                    {tag && <span className="ml-1.5 text-xs font-semibold text-primary">{tag}</span>}
+                    {tag && <span className="ml-1 text-[0.65rem] font-semibold text-primary">{tag}</span>}
                   </button>
                 </Fragment>
               );
