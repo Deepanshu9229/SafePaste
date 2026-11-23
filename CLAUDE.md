@@ -38,8 +38,13 @@ Extra AI features:
 VM.Standard.A1.Flex: 2 OCPU (Arm), 12 GB RAM, Ubuntu.
 Already running: Ollama (chat works), Docker, n8n + PostgreSQL in Docker (network n8n-network).
 Not set up yet: n8n workflows, cron jobs.
-SECURITY TODO: the n8n editor is reachable at http://<public-ip>:5678. Close ports 5678 and 11434
-(Oracle security list + iptables); open n8n through an SSH tunnel.
+n8n (done 2026-11-24): started with `docker run`, published on 127.0.0.1:5678 only, settings in
+~/n8n.env, data in ~/.n8n, `--add-host host.docker.internal:172.18.0.1` so it can reach Ollama.
+Open the editor through an SSH tunnel (`ssh -L 5678:127.0.0.1:5678 ...`) at http://localhost:5678.
+Ollama listens on 0.0.0.0:11434 (needed by the n8n container); not reachable from the internet
+(blocked by the Oracle security list).
+SECURITY TODO: remove the leftover iptables ACCEPT rules for 5678 and 11434 (limit 11434 to the Docker
+network) and the matching Oracle security-list rules. Pending: 21 apt updates + a restart.
 CPU is the constraint. Model (decided 2026-11-24): llama3.2:3b. Measured on this VM with 2 threads:
 - llama3.1:8b: reads 9.9 tok/s, writes 3.2 tok/s. A full-size scan (301 prompt + 200 output tokens)
   took 92 s, over the 45 s limit. Still installed, not used.
