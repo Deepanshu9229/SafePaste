@@ -1,4 +1,8 @@
-import Editor from "@/features/editor/Editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MaskedOutput from "@/features/editor/MaskedOutput";
+import PasteInput from "@/features/editor/PasteInput";
+import RestorePanel from "@/features/editor/RestorePanel";
+import ReviewPanel from "@/features/editor/ReviewPanel";
 
 export default function Home() {
   return (
@@ -9,7 +13,20 @@ export default function Home() {
           Mask personal data before you paste it into AI, then restore it in the reply.
         </p>
       </header>
-      <Editor />
+      <Tabs defaultValue="mask" className="gap-4">
+        <TabsList>
+          <TabsTrigger value="mask">Mask</TabsTrigger>
+          <TabsTrigger value="restore">Restore</TabsTrigger>
+        </TabsList>
+        <TabsContent value="mask" className="flex flex-col gap-4">
+          <PasteInput />
+          <ReviewPanel />
+          <MaskedOutput />
+        </TabsContent>
+        <TabsContent value="restore" className="flex flex-col gap-4">
+          <RestorePanel />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }
