@@ -30,7 +30,7 @@ export default function PasteInput() {
         <Textarea
           aria-label="Text to mask"
           placeholder="e.g. Hi, my PAN is ABCPE1234F and my number is +91 98765 43210."
-          className="min-h-40 font-mono"
+          className="max-h-[60vh] min-h-40 font-mono lg:h-[60vh]"
           value={text}
           onChange={(event) => handleChange(event.target.value)}
         />

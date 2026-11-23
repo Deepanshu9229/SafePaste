@@ -28,7 +28,7 @@ export default function RestorePanel() {
           <Textarea
             aria-label="AI reply"
             placeholder="e.g. Dear customer, your PAN [PAN_1] has been verified."
-            className="min-h-40 font-mono"
+            className="max-h-[60vh] min-h-40 font-mono lg:h-[60vh]"
             value={reply}
             onChange={(event) => dispatch(replyChanged(event.target.value))}
           />
@@ -43,7 +43,7 @@ export default function RestorePanel() {
           </CardAction>
         </CardHeader>
         <CardContent>
-          <p className="font-mono text-sm leading-7 break-words whitespace-pre-wrap">
+          <p className="max-h-[60vh] overflow-y-auto font-mono text-sm leading-7 break-words whitespace-pre-wrap">
             {restored || <span className="text-muted-foreground">The restored reply will appear here.</span>}
           </p>
         </CardContent>

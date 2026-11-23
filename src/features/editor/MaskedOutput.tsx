@@ -26,7 +26,7 @@ export default function MaskedOutput() {
         {detectError ? (
           <p className="text-sm text-destructive">{detectError}</p>
         ) : (
-          <p className="font-mono text-sm leading-7 break-words whitespace-pre-wrap">
+          <p className="max-h-[60vh] overflow-y-auto font-mono text-sm leading-7 break-words whitespace-pre-wrap">
             {maskedText || <span className="text-muted-foreground">The masked text will appear here.</span>}
           </p>
         )}

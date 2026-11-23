@@ -25,7 +25,7 @@ export default function ReviewPanel() {
       </CardHeader>
       {text && (
         <CardContent>
-          <p className="font-mono text-sm leading-7 break-words whitespace-pre-wrap">
+          <p className="max-h-[60vh] overflow-y-auto font-mono text-sm leading-7 break-words whitespace-pre-wrap">
             {entities.map((entity, index) => {
               const tag = tags[index];
               const previousEnd = index === 0 ? 0 : entities[index - 1].end;
