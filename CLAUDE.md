@@ -26,7 +26,7 @@ Extra AI features:
   Detectors run in a Web Worker. Hosted on Vercel as static files only; Vercel never sees pasted text.
 - UI: Tailwind CSS + shadcn/ui (chosen for job-market relevance over Mantine/MUI).
 - Backend on the Oracle VM: Caddy (HTTPS via a DuckDNS subdomain, forwards /api/* to
-  127.0.0.1:8080, 16 KB body cap) → Node REST API (Fastify or Express, undecided)
+  127.0.0.1:8080, 16 KB body cap) → Node REST API (Express)
   → Ollama on 127.0.0.1:11434.
 - API protection, no API key (a browser can't keep secrets): Cloudflare Turnstile token per
   request, CORS allowlist, per-IP limit of 10 AI requests/min in memory (IP from
@@ -40,8 +40,9 @@ Already running: Ollama (chat works), Docker, n8n + PostgreSQL in Docker (networ
 Not set up yet: n8n workflows, cron jobs.
 SECURITY TODO: the n8n editor is reachable at http://<public-ip>:5678. Close ports 5678 and 11434
 (Oracle security list + iptables); open n8n through an SSH tunnel.
-CPU is the constraint: start with llama3.2:3b, compare with llama3.1:8b using
-`ollama run <model> --verbose`. Optional: resize the VM to 4 OCPU / 24 GB if that free quota is unused.
+CPU is the constraint. Model (decided): try the model already installed on the VM first; move to a
+smaller one only if it is too slow. Measure with `ollama run <model> --verbose`.
+Optional: resize the VM to 4 OCPU / 24 GB if that free quota is unused.
 
 ## Detectors (browser, in this order)
 GSTIN (state code + mod-36 check character) → Aadhaar (12 digits, first digit 2–9, Verhoeff)
@@ -76,9 +77,9 @@ Rules: ship every week; never store pasted text; keep n8n private; synthetic tes
 (never real Aadhaar/PAN/card numbers).
 
 ## Open questions
-Model (3B, or resize VM + 8B) · Private Ask: presets only or also free text · tag style
-([PERSON_1] vs realistic fake names) · Fastify vs Express
-· DuckDNS vs a paid domain.
+Private Ask: presets only or also free text · tag style ([PERSON_1] vs realistic fake names;
+the app currently uses [TYPE_n]).
+Decided: Express · DuckDNS · model = whatever is installed on the VM, smaller only if too slow.
 
 ## About me / how to work with me
 Deepanshu, frontend engineer (React, TypeScript, Redux, Mantine; built SSE alerts with
