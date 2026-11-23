@@ -45,7 +45,7 @@ Ollama listens on 0.0.0.0:11434 (needed by the n8n container); not reachable fro
 Firewall (done 2026-11-24, saved with netfilter-persistent, verified after a restart): iptables INPUT
 allows 22 from anywhere and 11434 only from the Docker network 172.18.0.0/16; nothing for 5678.
 Backup of the old rules: ~/iptables-backup.rules. System updated and restarted 2026-11-24.
-TODO: check the Oracle security list for a leftover ingress rule on 5678 and remove it.
+Oracle security list: the ingress rule for 5678 is removed.
 For W2: open 80 and 443 (iptables + Oracle security list) for Caddy; install Node and Caddy.
 CPU is the constraint. Model (decided 2026-11-24): llama3.2:3b. Measured on this VM with 2 threads:
 - llama3.1:8b: reads 9.9 tok/s, writes 3.2 tok/s. A full-size scan (301 prompt + 200 output tokens)
@@ -86,6 +86,13 @@ W0 server prep (close ports, pick model) · W1 rules-only app live on Vercel · 
 publish precision/recall), README, demo GIF.
 Rules: ship every week; never store pasted text; keep n8n private; synthetic test data only
 (never real Aadhaar/PAN/card numbers).
+
+## Status (2026-11-24)
+W0 and W1 code done (W1 not yet deployed to Vercel). W2 code done and tested locally against a fake
+Ollama: `server/` (Express API: /api/health, /api/scan) and the AI scan button in the web app.
+W2 still to do on the VM: install Node + Caddy, DuckDNS subdomain, open 80/443, real Turnstile keys,
+run the API as a service, then set NEXT_PUBLIC_API_URL and NEXT_PUBLIC_TURNSTILE_SITE_KEY for the build.
+The server runs TypeScript directly with Node (no build step); its tests are separate (`cd server && npm test`).
 
 ## Open questions
 Private Ask: presets only or also free text · tag style ([PERSON_1] vs realistic fake names;

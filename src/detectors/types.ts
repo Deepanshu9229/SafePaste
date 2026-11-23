@@ -1,4 +1,4 @@
-// Entity types found by the browser detectors. AI types (PERSON, ADDRESS) are added in W2.
+// GSTIN…PHONE are found by the browser detectors; PERSON and ADDRESS by the AI scan.
 export type EntityType =
   | "GSTIN"
   | "AADHAAR"
@@ -6,7 +6,9 @@ export type EntityType =
   | "PAN"
   | "UPI"
   | "EMAIL"
-  | "PHONE";
+  | "PHONE"
+  | "PERSON"
+  | "ADDRESS";
 
 export interface Match {
   type: EntityType;

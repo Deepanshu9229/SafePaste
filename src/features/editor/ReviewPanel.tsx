@@ -4,6 +4,7 @@ import { Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import AiScan from "./AiScan";
 import { entityToggled, selectDetectedText, selectEntities, selectMaskResult } from "./editorSlice";
 
 export default function ReviewPanel() {
@@ -25,6 +26,7 @@ export default function ReviewPanel() {
       </CardHeader>
       {text && (
         <CardContent>
+          <AiScan />
           <p className="max-h-[60vh] overflow-y-auto font-mono text-sm leading-7 break-words whitespace-pre-wrap">
             {entities.map((entity, index) => {
               const tag = tags[index];
@@ -32,13 +34,21 @@ export default function ReviewPanel() {
               return (
                 <Fragment key={`${entity.start}-${entity.end}`}>
                   {text.slice(previousEnd, entity.start)}
-                  <button
-                    type="button"
+                  {/* A span, not a <button>: buttons can't wrap, and addresses are longer than a line. */}
+                  <span
+                    role="button"
+                    tabIndex={0}
                     aria-pressed={entity.masked}
                     title={entity.masked ? `Masked as ${tag}. Click to keep visible.` : "Visible. Click to mask."}
                     onClick={() => dispatch(entityToggled(index))}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      dispatch(entityToggled(index));
+                    }}
                     className={cn(
-                      "rounded px-1 text-[0.8rem] leading-5 transition-colors",
+                      "cursor-pointer rounded box-decoration-clone px-1 py-0.5 text-[0.8rem] transition-colors",
+                      "outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       entity.masked
                         ? "bg-primary/15 ring-1 ring-primary/40 hover:bg-primary/25"
                         : "border border-dashed border-muted-foreground/50 text-muted-foreground hover:bg-muted",
@@ -46,7 +56,7 @@ export default function ReviewPanel() {
                   >
                     {entity.value}
                     {tag && <span className="ml-1 text-[0.65rem] font-semibold text-primary">{tag}</span>}
-                  </button>
+                  </span>
                 </Fragment>
               );
             })}
