@@ -41,10 +41,12 @@ Not set up yet: n8n workflows, cron jobs.
 n8n (done 2026-11-24): started with `docker run`, published on 127.0.0.1:5678 only, settings in
 ~/n8n.env, data in ~/.n8n, `--add-host host.docker.internal:172.18.0.1` so it can reach Ollama.
 Open the editor through an SSH tunnel (`ssh -L 5678:127.0.0.1:5678 ...`) at http://localhost:5678.
-Ollama listens on 0.0.0.0:11434 (needed by the n8n container); not reachable from the internet
-(blocked by the Oracle security list).
-SECURITY TODO: remove the leftover iptables ACCEPT rules for 5678 and 11434 (limit 11434 to the Docker
-network) and the matching Oracle security-list rules. Pending: 21 apt updates + a restart.
+Ollama listens on 0.0.0.0:11434 (needed by the n8n container); not reachable from the internet.
+Firewall (done 2026-11-24, saved with netfilter-persistent, verified after a restart): iptables INPUT
+allows 22 from anywhere and 11434 only from the Docker network 172.18.0.0/16; nothing for 5678.
+Backup of the old rules: ~/iptables-backup.rules. System updated and restarted 2026-11-24.
+TODO: check the Oracle security list for a leftover ingress rule on 5678 and remove it.
+For W2: open 80 and 443 (iptables + Oracle security list) for Caddy; install Node and Caddy.
 CPU is the constraint. Model (decided 2026-11-24): llama3.2:3b. Measured on this VM with 2 threads:
 - llama3.1:8b: reads 9.9 tok/s, writes 3.2 tok/s. A full-size scan (301 prompt + 200 output tokens)
   took 92 s, over the 45 s limit. Still installed, not used.
