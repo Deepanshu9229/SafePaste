@@ -1,5 +1,7 @@
 # SafePaste — project brief
 
+@AGENTS.md
+
 ## What it is
 SafePaste masks personal data in pasted text, including Indian IDs, so people can use AI on it
 safely (ChatGPT, or SafePaste's own self-hosted model), then restores the real values in the
@@ -22,6 +24,7 @@ Extra AI features:
   axios + createAsyncThunk (not RTK Query). AI calls via SSE using @microsoft/fetch-event-source
   (POST). Streams never auto-retry: throw in onerror, set openWhenHidden: true.
   Detectors run in a Web Worker. Hosted on Vercel as static files only; Vercel never sees pasted text.
+- UI: Tailwind CSS + shadcn/ui (chosen for job-market relevance over Mantine/MUI).
 - Backend on the Oracle VM: Caddy (HTTPS via a DuckDNS subdomain, forwards /api/* to
   127.0.0.1:8080, 16 KB body cap) → Node REST API (Fastify or Express, undecided)
   → Ollama on 127.0.0.1:11434.
@@ -74,7 +77,7 @@ Rules: ship every week; never store pasted text; keep n8n private; synthetic tes
 
 ## Open questions
 Model (3B, or resize VM + 8B) · Private Ask: presets only or also free text · tag style
-([PERSON_1] vs realistic fake names) · UI library (Mantine vs Tailwind) · Fastify vs Express
+([PERSON_1] vs realistic fake names) · Fastify vs Express
 · DuckDNS vs a paid domain.
 
 ## About me / how to work with me
