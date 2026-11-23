@@ -40,9 +40,13 @@ Already running: Ollama (chat works), Docker, n8n + PostgreSQL in Docker (networ
 Not set up yet: n8n workflows, cron jobs.
 SECURITY TODO: the n8n editor is reachable at http://<public-ip>:5678. Close ports 5678 and 11434
 (Oracle security list + iptables); open n8n through an SSH tunnel.
-CPU is the constraint. Model (decided): try the model already installed on the VM first; move to a
-smaller one only if it is too slow. Measure with `ollama run <model> --verbose`.
-Optional: resize the VM to 4 OCPU / 24 GB if that free quota is unused.
+CPU is the constraint. Model (decided 2026-11-24): llama3.2:3b. Measured on this VM with 2 threads:
+- llama3.1:8b: reads 9.9 tok/s, writes 3.2 tok/s. A full-size scan (301 prompt + 200 output tokens)
+  took 92 s, over the 45 s limit. Still installed, not used.
+- llama3.2:3b: reads 23.6 tok/s, writes 7.0 tok/s; cold load 14 s. The same scan is estimated at ~42 s,
+  so the worst case is close to the limit: keep prompts and output short, and keep the model loaded.
+Measure with `ollama run <model> --verbose`.
+Optional: resize the VM to 4 OCPU / 24 GB if that free quota is unused (would give more headroom).
 
 ## Detectors (browser, in this order)
 GSTIN (state code + mod-36 check character) → Aadhaar (12 digits, first digit 2–9, Verhoeff)
@@ -79,7 +83,7 @@ Rules: ship every week; never store pasted text; keep n8n private; synthetic tes
 ## Open questions
 Private Ask: presets only or also free text · tag style ([PERSON_1] vs realistic fake names;
 the app currently uses [TYPE_n]).
-Decided: Express · DuckDNS · model = whatever is installed on the VM, smaller only if too slow.
+Decided: Express · DuckDNS · model llama3.2:3b (8B was too slow, see Server).
 
 ## About me / how to work with me
 Deepanshu, frontend engineer (React, TypeScript, Redux, Mantine; built SSE alerts with
