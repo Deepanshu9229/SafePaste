@@ -1,0 +1,2 @@
+# Store text files with LF so the Windows checkout matches the Linux server and Vercel builds.
+* text=auto eol=lf
