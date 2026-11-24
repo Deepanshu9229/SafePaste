@@ -16,7 +16,10 @@
       "name": "Every 5 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [0, 0]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
@@ -29,7 +32,10 @@
       "name": "Call health endpoint",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [220, 0],
+      "position": [
+        220,
+        0
+      ],
       "onError": "continueErrorOutput"
     },
     {
@@ -60,35 +66,73 @@
       "name": "Is it healthy?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [440, -80]
+      "position": [
+        440,
+        -80
+      ]
     },
     {
       "parameters": {
-        "chatId": "YOUR_CHAT_ID",
-        "text": "=SafePaste API problem.\nStatus: {{ $json.status || 'no answer' }}\nDetails: {{ JSON.stringify($json).slice(0, 300) }}",
-        "additionalFields": {
+        "fromEmail": "YOUR_EMAIL_ADDRESS",
+        "toEmail": "YOUR_EMAIL_ADDRESS",
+        "subject": "SafePaste API problem",
+        "emailFormat": "text",
+        "text": "=The SafePaste health check failed.\n\nStatus: {{ $json.status || 'no answer' }}\nDetails: {{ JSON.stringify($json).slice(0, 300) }}\n\nChecked: https://safepaste.duckdns.org/api/health",
+        "options": {
           "appendAttribution": false
         }
       },
       "id": "a1f0c1d2-0004-4000-8000-000000000004",
-      "name": "Alert on Telegram",
-      "type": "n8n-nodes-base.telegram",
-      "typeVersion": 1.2,
-      "position": [680, 80]
+      "name": "Alert by email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        680,
+        80
+      ]
     }
   ],
   "connections": {
     "Every 5 minutes": {
-      "main": [[{ "node": "Call health endpoint", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Call health endpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call health endpoint": {
       "main": [
-        [{ "node": "Is it healthy?", "type": "main", "index": 0 }],
-        [{ "node": "Alert on Telegram", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Is it healthy?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert by email",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Is it healthy?": {
-      "main": [[], [{ "node": "Alert on Telegram", "type": "main", "index": 0 }]]
+      "main": [
+        [],
+        [
+          {
+            "node": "Alert by email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
