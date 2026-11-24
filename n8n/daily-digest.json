@@ -1,0 +1,122 @@
+{
+  "name": "SafePaste daily digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "b2f0c1d2-0001-4000-8000-000000000001",
+      "name": "Every day at 9:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  count(*)::int AS requests,\n  (count(*) FILTER (WHERE status = 'ok'))::int AS ok,\n  (count(*) FILTER (WHERE status <> 'ok'))::int AS not_ok,\n  count(DISTINCT visitor_hash)::int AS visitors,\n  coalesce(round(avg(total_ms) FILTER (WHERE status = 'ok'))::int, 0) AS avg_ms,\n  coalesce(round((avg(tokens_per_sec) FILTER (WHERE status = 'ok'))::numeric, 1)::float, 0) AS avg_tokens_per_sec,\n  coalesce(sum((entity_counts->>'PERSON')::int), 0)::int AS persons_masked,\n  coalesce(sum((entity_counts->>'ADDRESS')::int), 0)::int AS addresses_masked,\n  coalesce(string_agg(DISTINCT status, ', ') FILTER (WHERE status <> 'ok'), 'none') AS problems\nFROM usage_logs\nWHERE created_at > now() - interval '24 hours';",
+        "options": {}
+      },
+      "id": "b2f0c1d2-0002-4000-8000-000000000002",
+      "name": "Read usage numbers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'llama3.2:3b', stream: false, keep_alive: '30m', options: { temperature: 0, num_thread: 2, num_predict: 120 }, prompt: 'You write the daily usage report for SafePaste, a web tool that masks personal data before text is sent to AI. Write 2 or 3 plain sentences for the owner. Use only the numbers below, which cover the last 24 hours, and do not invent anything. Mention problems only if not_ok is above 0. Numbers: ' + JSON.stringify($json) }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b2f0c1d2-0003-4000-8000-000000000003",
+      "name": "Summarize with local model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fromEmail": "YOUR_EMAIL_ADDRESS",
+        "toEmail": "YOUR_EMAIL_ADDRESS",
+        "subject": "SafePaste daily digest",
+        "emailFormat": "text",
+        "text": "=SafePaste, last 24 hours\n\n{{ $json.response || 'The AI summary is not available today.' }}\n\nNumbers\nRequests: {{ $('Read usage numbers').first().json.requests }} (ok {{ $('Read usage numbers').first().json.ok }}, not ok {{ $('Read usage numbers').first().json.not_ok }})\nProblems: {{ $('Read usage numbers').first().json.problems }}\nVisitors: {{ $('Read usage numbers').first().json.visitors }}\nAverage duration: {{ $('Read usage numbers').first().json.avg_ms }} ms\nAverage speed: {{ $('Read usage numbers').first().json.avg_tokens_per_sec }} tokens/s\nMasked by AI: {{ $('Read usage numbers').first().json.persons_masked }} names, {{ $('Read usage numbers').first().json.addresses_masked }} addresses",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b2f0c1d2-0004-4000-8000-000000000004",
+      "name": "Send digest by email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Every day at 9:00": {
+      "main": [
+        [
+          {
+            "node": "Read usage numbers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read usage numbers": {
+      "main": [
+        [
+          {
+            "node": "Summarize with local model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize with local model": {
+      "main": [
+        [
+          {
+            "node": "Send digest by email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata"
+  }
+}
