@@ -1,4 +1,5 @@
-// GSTIN…PHONE are found by the browser detectors; PERSON and ADDRESS by the AI scan.
+// GSTIN…PHONE are found by the browser detectors; PERSON and ADDRESS by the AI scan;
+// REDACTED is text the user selected and masked by hand.
 export type EntityType =
   | "GSTIN"
   | "AADHAAR"
@@ -8,7 +9,8 @@ export type EntityType =
   | "EMAIL"
   | "PHONE"
   | "PERSON"
-  | "ADDRESS";
+  | "ADDRESS"
+  | "REDACTED";
 
 export interface Match {
   type: EntityType;

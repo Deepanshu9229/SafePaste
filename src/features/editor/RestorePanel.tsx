@@ -27,6 +27,7 @@ export default function RestorePanel() {
         <CardContent>
           <Textarea
             aria-label="AI reply"
+            spellCheck={false}
             placeholder="e.g. Dear customer, your PAN [PAN_1] has been verified."
             className="max-h-[60vh] min-h-40 font-mono lg:h-[60vh]"
             value={reply}

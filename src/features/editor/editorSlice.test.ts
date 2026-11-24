@@ -9,6 +9,7 @@ import {
   replyChanged,
   scanWithAi,
   selectAiScan,
+  selectionMasked,
   selectEntities,
   selectIsDetecting,
   selectMaskResult,
@@ -145,5 +146,56 @@ describe("AI scan", () => {
 
     expect(selectEntities(store.getState()).map((entity) => entity.type)).toEqual(["PAN"]);
     expect(selectAiScan(store.getState()).status).toBe("idle");
+  });
+});
+
+describe("mask by hand", () => {
+  const TEXT = "Project Falcon is late. PAN ABCPE1234F. Ask about Project Falcon tomorrow.";
+
+  function storeWithText() {
+    const store = makeStore();
+    store.dispatch(textChanged(TEXT));
+    store.dispatch(detected(TEXT));
+    return store;
+  }
+
+  it("masks the selected text everywhere it appears, with one tag", () => {
+    const store = storeWithText();
+
+    store.dispatch(selectionMasked({ start: 0, end: "Project Falcon".length }));
+
+    expect(selectMaskResult(store.getState()).maskedText).toBe(
+      "[REDACTED_1] is late. PAN [PAN_1]. Ask about [REDACTED_1] tomorrow.",
+    );
+    expect(selectMaskResult(store.getState()).tagMap["[REDACTED_1]"]).toBe("Project Falcon");
+  });
+
+  it("ignores spaces around the selection", () => {
+    const store = storeWithText();
+
+    store.dispatch(selectionMasked({ start: 7, end: 15 })); // " Falcon " with spaces
+
+    expect(selectMaskResult(store.getState()).tagMap["[REDACTED_1]"]).toBe("Falcon");
+  });
+
+  it("ignores selections shorter than 2 characters or inside an existing highlight", () => {
+    const store = storeWithText();
+    const panStart = TEXT.indexOf("ABCPE1234F");
+
+    store.dispatch(selectionMasked({ start: 0, end: 1 }));
+    store.dispatch(selectionMasked({ start: panStart, end: panStart + 10 }));
+
+    expect(selectEntities(store.getState()).map((entity) => entity.type)).toEqual(["PAN"]);
+  });
+
+  it("can be switched back to visible like any other highlight", () => {
+    const store = storeWithText();
+    store.dispatch(selectionMasked({ start: 0, end: "Project Falcon".length }));
+
+    store.dispatch(entityToggled(0));
+
+    expect(selectMaskResult(store.getState()).maskedText).toBe(
+      "Project Falcon is late. PAN [PAN_1]. Ask about [REDACTED_1] tomorrow.",
+    );
   });
 });

@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSelector, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { detectInWorker } from "@/detectors/detectInWorker";
+import type { EntityType } from "@/detectors/types";
 import { API_URL } from "@/lib/api";
 import { AiRequestError, postSse } from "@/lib/sse";
 import { maskText, type Entity } from "@/masking/mask";
@@ -52,6 +53,29 @@ const initialState: EditorState = {
   aiScan: initialAiScan,
   reply: "",
 };
+
+/**
+ * Mask every occurrence of `value` that doesn't overlap an existing entity,
+ * so the same text never stays visible elsewhere. Returns true if anything was added.
+ */
+function maskEverywhere(state: EditorState, type: EntityType, value: string): boolean {
+  if (!value) return false;
+
+  let added = false;
+  let searchFrom = 0;
+  for (;;) {
+    const start = state.detectedText.indexOf(value, searchFrom);
+    if (start === -1) break;
+    const end = start + value.length;
+    searchFrom = end;
+    if (state.entities.some((entity) => start < entity.end && entity.start < end)) continue;
+    state.entities.push({ type, start, end, value, masked: true });
+    added = true;
+  }
+
+  if (added) state.entities.sort((a, b) => a.start - b.start);
+  return added;
+}
 
 const createAppAsyncThunk = createAsyncThunk.withTypes<{ state: { editor: EditorState } }>();
 
@@ -112,27 +136,15 @@ export const editorSlice = createSlice({
       state.aiScan.queuePosition = action.payload;
       state.aiScan.status = action.payload > 0 ? "waiting" : "scanning";
     },
-    /** Mask every occurrence of the entity's text that doesn't overlap an existing entity. */
     aiEntityFound(state, action: PayloadAction<AiEntity>) {
       const { type, text } = action.payload;
-      if (!text) return;
-
-      let added = false;
-      let searchFrom = 0;
-      for (;;) {
-        const start = state.detectedText.indexOf(text, searchFrom);
-        if (start === -1) break;
-        const end = start + text.length;
-        searchFrom = end;
-        if (state.entities.some((entity) => start < entity.end && entity.start < end)) continue;
-        state.entities.push({ type, start, end, value: text, masked: true });
-        added = true;
-      }
-
-      if (added) {
-        state.entities.sort((a, b) => a.start - b.start);
-        state.aiScan.foundCount += 1;
-      }
+      if (maskEverywhere(state, type, text)) state.aiScan.foundCount += 1;
+    },
+    /** The user selected a piece of the review text and chose to mask it. */
+    selectionMasked(state, action: PayloadAction<{ start: number; end: number }>) {
+      const value = state.detectedText.slice(action.payload.start, action.payload.end).trim();
+      if (value.length < 2) return;
+      maskEverywhere(state, "REDACTED", value);
     },
     aiScanTimed(state, action: PayloadAction<number>) {
       state.aiScan.totalMs = action.payload;
@@ -184,8 +196,16 @@ export const editorSlice = createSlice({
   },
 });
 
-export const { textChanged, entityToggled, replyChanged, aiScanQueued, aiEntityFound, aiScanTimed, aiScanFailed } =
-  editorSlice.actions;
+export const {
+  textChanged,
+  entityToggled,
+  replyChanged,
+  aiScanQueued,
+  aiEntityFound,
+  selectionMasked,
+  aiScanTimed,
+  aiScanFailed,
+} = editorSlice.actions;
 export const {
   selectText,
   selectDetectedText,
