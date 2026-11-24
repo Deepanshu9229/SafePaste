@@ -60,3 +60,5 @@ To use it from the web app, copy `.env.example` in the repo root to `.env.local`
 | `POST /api/scan` | Body `{ text, turnstileToken }`. Streams `queued`, `entity`, `stats`, `done` or `error` events (SSE). |
 
 Protections: Cloudflare Turnstile token per request, CORS allowlist, 10 requests per minute per IP, 1,000-character input limit, a queue (1 running, 2 waiting), a 45-second timeout. An entity from the model is kept only if its text appears word for word in the input. Request text is never logged or stored.
+
+**Usage log (optional):** with `DATABASE_URL` set, the API writes one row per request to PostgreSQL (`server/sql/001_usage_logs.sql`): time, endpoint, status, model, input length, entity counts, speed and duration. Instead of the IP address it stores a hash of IP + date + a secret, which changes every day. The request text has no column.

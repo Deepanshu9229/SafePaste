@@ -5,6 +5,8 @@ export interface Config {
   /** Origins allowed by CORS, e.g. ["https://safepaste.vercel.app"]. */
   corsOrigins: string[];
   turnstileSecret: string;
+  /** Where usage rows are written, or null to turn usage logging off. */
+  usageLog: { databaseUrl: string; hashSecret: string } | null;
   /** Longest accepted input, in characters. */
   maxTextLength: number;
   /** AI requests allowed per IP per minute. */
@@ -31,6 +33,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .map((origin) => origin.trim())
       .filter(Boolean),
     turnstileSecret: required(env, "TURNSTILE_SECRET"),
+    // Logging is optional, but with a database the hash secret is required.
+    usageLog: env.DATABASE_URL
+      ? { databaseUrl: env.DATABASE_URL, hashSecret: required(env, "VISITOR_HASH_SECRET") }
+      : null,
     maxTextLength: 1000,
     requestsPerMinute: 10,
     maxWaiting: 2,

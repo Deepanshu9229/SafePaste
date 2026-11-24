@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LineSplitter } from "./lines.ts";
 import { JobQueue } from "./queue.ts";
 import { RateLimiter } from "./rateLimit.ts";
 import { parseEntityLine } from "./scan.ts";
+import { createUsageLogger, visitorHash, type UsageEntry } from "./usageLog.ts";
 
 describe("LineSplitter", () => {
   it("returns complete lines and keeps the unfinished one", () => {
@@ -115,5 +116,64 @@ describe("parseEntityLine", () => {
     expect(parseEntityLine('{"type":"EMAIL","text":"Priya Sharma"}', input)).toBeNull();
     expect(parseEntityLine('{"type":"PERSON","text":42}', input)).toBeNull();
     expect(parseEntityLine("", input)).toBeNull();
+  });
+});
+
+describe("visitorHash", () => {
+  const day1 = new Date("2026-11-24T10:00:00Z");
+
+  it("is the same for one visitor within a day, and changes the next day", () => {
+    const morning = visitorHash("203.0.113.7", day1, "secret");
+    const evening = visitorHash("203.0.113.7", new Date("2026-11-24T23:59:00Z"), "secret");
+    const nextDay = visitorHash("203.0.113.7", new Date("2026-11-25T00:00:00Z"), "secret");
+
+    expect(evening).toBe(morning);
+    expect(nextDay).not.toBe(morning);
+  });
+
+  it("differs per visitor and per secret, and does not contain the IP", () => {
+    const hash = visitorHash("203.0.113.7", day1, "secret");
+
+    expect(visitorHash("203.0.113.8", day1, "secret")).not.toBe(hash);
+    expect(visitorHash("203.0.113.7", day1, "other-secret")).not.toBe(hash);
+    expect(hash).toMatch(/^[0-9a-f]{32}$/);
+    expect(hash).not.toContain("203");
+  });
+});
+
+describe("createUsageLogger", () => {
+  const entry: UsageEntry = {
+    endpoint: "scan",
+    status: "ok",
+    model: "test-model",
+    inputChars: 120,
+    entityCounts: { PERSON: 2 },
+    outputTokens: 40,
+    tokensPerSec: 7.1,
+    totalMs: 21000,
+    ip: "203.0.113.7",
+  };
+
+  it("inserts one row with a visitor hash instead of the IP", () => {
+    const query = vi.fn(async () => undefined);
+    createUsageLogger({ query }, "secret")(entry);
+
+    expect(query).toHaveBeenCalledTimes(1);
+    const [sql, values] = query.mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql).toContain("INSERT INTO usage_logs");
+    expect(values.slice(0, 8)).toEqual(["scan", "ok", "test-model", 120, '{"PERSON":2}', 40, 7.1, 21000]);
+    expect(values[8]).toMatch(/^[0-9a-f]{32}$/);
+    expect(values).not.toContain("203.0.113.7");
+  });
+
+  it("does not throw when the database fails", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const query = vi.fn(async () => {
+      throw new Error("database is down");
+    });
+
+    expect(() => createUsageLogger({ query }, "secret")(entry)).not.toThrow();
+    await vi.waitFor(() => expect(errors).toHaveBeenCalledWith("usage log failed:", "database is down"));
+    errors.mockRestore();
   });
 });

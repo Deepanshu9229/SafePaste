@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import type { Config } from "./config.ts";
 import { startFakeOllama, type FakeOllama } from "./testing/fakeOllama.ts";
+import type { UsageEntry } from "./usageLog.ts";
 
 // The real Express app, talking to a fake Ollama. All text is synthetic.
 // One HTTP server and one fake Ollama serve the whole file; each test installs its own app.
@@ -16,6 +17,8 @@ let ollama: FakeOllama;
 let server: Server;
 let api: string;
 let app: Express;
+/** Usage rows the app has written in the current test. */
+let usage: UsageEntry[];
 
 /** Install a fresh app (new queue, new rate limiter); `overrides` change single config values. */
 function startApi(overrides: Partial<Config> = {}): void {
@@ -25,13 +28,18 @@ function startApi(overrides: Partial<Config> = {}): void {
     model: "test-model",
     corsOrigins: ["http://localhost:3000"],
     turnstileSecret: "unused",
+    usageLog: null,
     maxTextLength: 1000,
     requestsPerMinute: 100,
     maxWaiting: 2,
     timeoutMs: 5000,
     ...overrides,
   };
-  app = createApp({ config, verifyTurnstile: async (token) => token === "good-token" });
+  app = createApp({
+    config,
+    verifyTurnstile: async (token) => token === "good-token",
+    logUsage: (entry) => usage.push(entry),
+  });
 }
 
 function scan(body: unknown, signal?: AbortSignal): Promise<Response> {
@@ -98,6 +106,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  usage = [];
   ollama.chunks = [PRIYA];
   ollama.gate = Promise.resolve();
   ollama.requests = [];
@@ -125,6 +134,13 @@ describe("POST /api/scan: rejected before the stream starts", () => {
     expect((await scan({ text: TEXT })).status).toBe(400);
     expect((await scan("{not json")).status).toBe(400);
     expect(ollama.requests).toHaveLength(0);
+    // Invalid JSON never reaches the handler, so 4 rows.
+    expect(usage.map((row) => [row.status, row.inputChars])).toEqual([
+      ["bad_request", 0],
+      ["bad_request", 3],
+      ["bad_request", 1001],
+      ["bad_request", TEXT.length],
+    ]);
   });
 
   it("413 for a body over 16 KB", async () => {
@@ -136,6 +152,7 @@ describe("POST /api/scan: rejected before the stream starts", () => {
     startApi();
     expect((await scan({ text: TEXT, turnstileToken: "bad-token" })).status).toBe(403);
     expect(ollama.requests).toHaveLength(0);
+    expect(usage.map((row) => row.status)).toEqual(["forbidden"]);
   });
 
   it("429 with Retry-After once the per-IP limit is used up", async () => {
@@ -147,6 +164,7 @@ describe("POST /api/scan: rejected before the stream starts", () => {
 
     expect(third.status).toBe(429);
     expect(Number(third.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(usage.map((row) => row.status)).toEqual(["ok", "ok", "rate_limited"]);
   });
 
   it("503 when one request is running and two are waiting", async () => {
@@ -173,6 +191,7 @@ describe("POST /api/scan: rejected before the stream starts", () => {
     expect(third[0]).toEqual(["queued", { position: 2 }]);
     expect(third.at(-1)).toEqual(["done", {}]);
     expect((await health()).queueLength).toBe(0);
+    expect(usage.map((row) => row.status).sort()).toEqual(["busy", "ok", "ok", "ok"]);
   });
 });
 
@@ -205,6 +224,18 @@ describe("POST /api/scan: the stream", () => {
     expect(received[4][1]).toMatchObject({ model: "test-model", outputTokens: 20, tokensPerSec: 5 });
     expect(received[5]).toEqual(["done", {}]);
     expect((await health()).lastTokensPerSec).toBe(5);
+    expect(usage).toHaveLength(1);
+    expect(usage[0]).toMatchObject({
+      endpoint: "scan",
+      status: "ok",
+      model: "test-model",
+      inputChars: TEXT.length,
+      entityCounts: { PERSON: 2, ADDRESS: 1 },
+      outputTokens: 20,
+      tokensPerSec: 5,
+    });
+    // The row has no field that could hold the text.
+    expect(JSON.stringify(usage[0])).not.toContain("Priya");
   });
 
   it("calls Ollama with the settings from the brief", async () => {
@@ -230,6 +261,7 @@ describe("POST /api/scan: the stream", () => {
 
     expect(received[1]).toEqual(["entity", { type: "PERSON", text: "Priya Sharma" }]);
     expect(received.at(-1)).toEqual(["error", { code: "timeout", message: "The scan took longer than 0 seconds." }]);
+    expect(usage.map((row) => [row.status, row.entityCounts])).toEqual([["timeout", { PERSON: 1 }]]);
     expect((await health()).queueLength).toBe(0);
   });
 
@@ -239,6 +271,7 @@ describe("POST /api/scan: the stream", () => {
     const received = await events(await scan({ text: TEXT, turnstileToken: "good-token" }));
 
     expect(received.at(-1)).toEqual(["error", { code: "model", message: "The AI model is not available right now." }]);
+    expect(usage.map((row) => row.status)).toEqual(["model_error"]);
   });
 
   it("stops the model and frees the queue when the client disconnects", async () => {
@@ -254,6 +287,8 @@ describe("POST /api/scan: the stream", () => {
     await expect(response.text()).rejects.toThrow();
     await until(() => ollama.aborted === 1);
     await until(async () => (await health()).queueLength === 0);
+    await until(() => usage.length === 1);
+    expect(usage[0].status).toBe("aborted");
   });
 });
 

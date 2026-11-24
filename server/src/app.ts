@@ -8,14 +8,16 @@ import { RateLimiter } from "./rateLimit.ts";
 import { parseEntityLine, SCAN_NUM_PREDICT, SCAN_SYSTEM_PROMPT } from "./scan.ts";
 import { openSse } from "./sse.ts";
 import type { VerifyTurnstile } from "./turnstile.ts";
+import type { LogUsage, UsageEntry, UsageStatus } from "./usageLog.ts";
 
 interface AppDeps {
   config: Config;
   verifyTurnstile: VerifyTurnstile;
+  logUsage: LogUsage;
 }
 
 // Privacy rule: request text is never logged or stored anywhere in this file.
-export function createApp({ config, verifyTurnstile }: AppDeps): Express {
+export function createApp({ config, verifyTurnstile, logUsage }: AppDeps): Express {
   const app = express();
   const queue = new JobQueue(config.maxWaiting);
   const limiter = new RateLimiter(config.requestsPerMinute, 60_000);
@@ -44,23 +46,45 @@ export function createApp({ config, verifyTurnstile }: AppDeps): Express {
   });
 
   app.post("/api/scan", async (req, res) => {
-    // 1. Cheap checks first. Everything before openSse() answers with a normal HTTP status.
+    const receivedAt = Date.now();
     const { text, turnstileToken } = (req.body ?? {}) as Record<string, unknown>;
+
+    /** Write the usage row for this request. Called exactly once, wherever the request ends. */
+    const log = (status: UsageStatus, details: Partial<UsageEntry> = {}) => {
+      logUsage({
+        endpoint: "scan",
+        status,
+        model: config.model,
+        inputChars: typeof text === "string" ? text.length : 0,
+        entityCounts: {},
+        outputTokens: null,
+        tokensPerSec: null,
+        totalMs: Date.now() - receivedAt,
+        ip: req.ip,
+        ...details,
+      });
+    };
+
+    // 1. Cheap checks first. Everything before openSse() answers with a normal HTTP status.
     if (typeof text !== "string" || text.trim() === "" || text.length > config.maxTextLength) {
+      log("bad_request");
       res.status(400).json({ error: `text must be 1 to ${config.maxTextLength} characters` });
       return;
     }
     if (typeof turnstileToken !== "string" || turnstileToken === "") {
+      log("bad_request");
       res.status(400).json({ error: "turnstileToken is required" });
       return;
     }
 
     const retryAfter = limiter.check(req.ip ?? "unknown");
     if (retryAfter > 0) {
+      log("rate_limited");
       res.status(429).set("Retry-After", String(retryAfter)).json({ error: "Too many requests" });
       return;
     }
     if (queue.isFull) {
+      log("busy");
       res.status(503).json({ error: "The AI is busy. Try again in a minute." });
       return;
     }
@@ -69,10 +93,12 @@ export function createApp({ config, verifyTurnstile }: AppDeps): Express {
     try {
       isHuman = await verifyTurnstile(turnstileToken, req.ip);
     } catch {
+      log("busy");
       res.status(503).json({ error: "Verification is unavailable. Try again in a minute." });
       return;
     }
     if (!isHuman) {
+      log("forbidden");
       res.status(403).json({ error: "Verification failed" });
       return;
     }
@@ -80,6 +106,7 @@ export function createApp({ config, verifyTurnstile }: AppDeps): Express {
     // 2. Take a place in the queue (it may have filled up while Turnstile was checked).
     const ticket = queue.join();
     if (!ticket) {
+      log("busy");
       res.status(503).json({ error: "The AI is busy. Try again in a minute." });
       return;
     }
@@ -95,18 +122,23 @@ export function createApp({ config, verifyTurnstile }: AppDeps): Express {
     sse.send("queued", { position: ticket.position });
 
     const isTurn = await ticket.ready;
-    if (!isTurn) return;
+    if (!isTurn) {
+      log("aborted"); // the client left while waiting in the queue
+      return;
+    }
     if (ticket.position > 0) sse.send("queued", { position: 0 });
 
     const startedAt = Date.now();
     const timeout = AbortSignal.timeout(config.timeoutMs);
     const sent = new Set<string>();
+    const entityCounts: Record<string, number> = {};
     const sendEntity = (line: string) => {
       const entity = parseEntityLine(line, text);
       if (!entity) return;
       const key = `${entity.type}:${entity.text}`;
       if (sent.has(key)) return;
       sent.add(key);
+      entityCounts[entity.type] = (entityCounts[entity.type] ?? 0) + 1;
       sse.send("entity", entity);
     };
 
@@ -141,14 +173,18 @@ export function createApp({ config, verifyTurnstile }: AppDeps): Express {
         totalMs: Date.now() - startedAt,
       });
       sse.send("done", {});
+      log("ok", { entityCounts, outputTokens, tokensPerSec: lastTokensPerSec });
     } catch (error) {
-      if (clientGone.signal.aborted) return;
-      if (timeout.aborted) {
+      if (clientGone.signal.aborted) {
+        log("aborted", { entityCounts });
+      } else if (timeout.aborted) {
         const seconds = Math.round(config.timeoutMs / 1000);
         sse.send("error", { code: "timeout", message: `The scan took longer than ${seconds} seconds.` });
+        log("timeout", { entityCounts });
       } else {
         console.error("scan failed:", error instanceof Error ? error.message : error);
         sse.send("error", { code: "model", message: "The AI model is not available right now." });
+        log("model_error", { entityCounts });
       }
     } finally {
       ticket.leave();
